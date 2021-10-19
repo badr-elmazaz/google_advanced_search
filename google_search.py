@@ -7,15 +7,24 @@ import sys
 import os.path as op
 import json
 import os
+from dataclasses import dataclass
 
 
 # Third party Python libraries.
 from bs4 import BeautifulSoup
-import requests, lxml
+import requests
+
 
 __version__ = "0.0.1"
 THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
+
+@dataclass
+class Result:
+    id: Optional[str] = None
+    url: Optional[str] = None
+    snippet: Optional[str] = None
+    title: Optional[str] = None
 
 class QueryType(Enum):
     ALL_THESE_WORDS_PARAMETER_DESCRIPTION = "Type the important words: tri-colour rat terrier"
@@ -193,13 +202,13 @@ def search(query: Query,
         soup = BeautifulSoup(raw_html, 'html.parser')
         result_block = soup.find_all('div', attrs={'class': 'g'})
 
-        from google_search.search import Item
+
         for result in result_block:
             link = result.find('a', href=True)
             title = result.find('h3')
             snippet = result.find("div", class_="VwiC3b")
             if link and title and snippet:
-                yield Item(id=str(uuid.uuid4()), title=title.text.strip(), snippet=snippet.text.strip(),
+                yield Result(id=str(uuid.uuid4()), title=title.text.strip(), snippet=snippet.text.strip(),
                            url=link['href'])
 
     html = fetch_results()
