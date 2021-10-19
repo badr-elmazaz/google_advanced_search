@@ -1,17 +1,20 @@
 # Standard Python libraries.
+import uuid
 from enum import Enum
 from typing import Optional
 import urllib.parse
 import sys
 import os.path as op
 import json
+import os
+
 
 # Third party Python libraries.
 from bs4 import BeautifulSoup
-import requests
+import requests, lxml
 
-
-__version__="0.0.1"
+__version__ = "0.0.1"
+THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
 
 class QueryType(Enum):
@@ -41,10 +44,9 @@ class Language():
 
     def __init__(self, language_code: Optional[str] = "eng"):
         self.language_code = language_code.lower()
-        f = open(op.join("resources", "languages.json"))
-
-        data = json.load(f)
-        f.close()
+        path = op.join(THIS_FOLDER, "languages.json")
+        with open(path) as f:
+            data = json.load(f)
         if self.language_code != "eng":
             for item in data:
                 if item["code"] == self.language_code:
@@ -59,10 +61,13 @@ class Region():
     ANY_REGION = ""
 
     def __init__(self, region_code: str = ""):
+        if region_code == None:
+            region_code = ""
         self.region_code = region_code.upper()
-        f = open(op.join("resources", "countries.json"))
-        data = json.load(f)
-        f.close()
+        path = op.join(THIS_FOLDER, "countries.json")
+        with open(path) as f:
+            data = json.load(f)
+
         if self.region_code != "":
             for item in data:
                 if item["code"] == self.region_code:
@@ -70,7 +75,6 @@ class Region():
                     break
             else:
                 print("Region not found, your ip region will be set")
-
 
 
 class LastUpdate(Enum):
@@ -146,13 +150,12 @@ def search(query: Query,
            usage_right: Optional[UsageRight] = UsageRight.NOT_FILTERED_BY_LICENSE,
            num_results: Optional[int] = 10,
            proxy=None):
-
-
     # encode url with %values
+    print(f"query = {query}")
     escaped_search_query = urllib.parse.quote(query.query).replace('%20', '+')
 
     google_url = f'https://www.google.com/search?{query.query_type.value}={escaped_search_query}&' \
-                 f'num={num_results + 1}&' \
+                 f'num={num_results}&' \
                  f'{Language.PARAMETER}={language.language_code}&' \
                  f'{Region.PARAMETER}={region.region_code}&' \
                  f'{LastUpdate.PARAMETER.value}={last_update.value}&' \
@@ -163,18 +166,19 @@ def search(query: Query,
                  f'{UsageRight.PARAMETER.value}={usage_right.value}'
 
     def fetch_results():
-        proxies = None
-        if proxy:
-            if proxy[:5] == "https":
-                proxies = {"https": proxy}
-            else:
-                proxies = {"http": proxy}
+        #todo optimize proxy
+        p=None
+        if proxy is not None:
+                p = {"http": proxy}
+                print(f"Im using with this proxy: {p}")
         user_agent = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
                           'Chrome/61.0.3163.100 Safari/537.36'}
-
+        print(f"Url: {google_url}")
+        response = None
         try:
-            response = requests.get(google_url, proxies=proxies, headers={'User-Agent': user_agent})
+            response = requests.get(google_url, proxies=p, headers=user_agent)
+
             response.raise_for_status()
         except requests.exceptions.HTTPError as errh:
             print("Http Error:", errh)
@@ -182,21 +186,23 @@ def search(query: Query,
             print("Error Connecting:", errc)
         except requests.exceptions.Timeout as errt:
             print("Timeout Error:", errt)
-        except requests.exceptions.RequestException as err:
-            print("Unkown Error, try using proxy", err)
 
         return response.text
 
     def parse_results(raw_html):
         soup = BeautifulSoup(raw_html, 'html.parser')
         result_block = soup.find_all('div', attrs={'class': 'g'})
+
+        from google_search.search import Item
         for result in result_block:
             link = result.find('a', href=True)
             title = result.find('h3')
-            if link and title:
-                yield link['href']
+            snippet = result.find("div", class_="VwiC3b")
+            if link and title and snippet:
+                yield Item(id=str(uuid.uuid4()), title=title.text.strip(), snippet=snippet.text.strip(),
+                           url=link['href'])
 
-    html = fetch_results(google_url)
+    html = fetch_results()
     return list(parse_results(html))
 
 
