@@ -53,7 +53,7 @@ class Language():
 
     def __init__(self, language_code: Optional[str] = "eng"):
         self.language_code = language_code.lower()
-        path = op.join(THIS_FOLDER, "languages.json")
+        path = op.join(THIS_FOLDER, "..", "resources","languages.json")
         with open(path) as f:
             data = json.load(f)
         if self.language_code != "eng":
@@ -73,7 +73,7 @@ class Region():
         if region_code == None:
             region_code = ""
         self.region_code = region_code.upper()
-        path = op.join(THIS_FOLDER, "countries.json")
+        path = op.join(THIS_FOLDER, "..", "resources", "countries.json")
         with open(path) as f:
             data = json.load(f)
 
@@ -178,7 +178,7 @@ def search(query: Query,
         #todo optimize proxy
         p=None
         if proxy is not None:
-                p = {"http": proxy}
+                p = {"http": proxy, "https": proxy}
                 print(f"Im using with this proxy: {p}")
         user_agent = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
