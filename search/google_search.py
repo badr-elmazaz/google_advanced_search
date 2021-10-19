@@ -178,7 +178,7 @@ def search(query: Query,
         #todo optimize proxy
         p=None
         if proxy is not None:
-                p = {"http": proxy, "https": proxy}
+                p = {"http": "http://"+proxy, "https": "http://"+proxy}
                 print(f"Im using with this proxy: {p}")
         user_agent = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
