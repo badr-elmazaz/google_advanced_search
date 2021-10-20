@@ -1,5 +1,5 @@
 # Standard Python libraries.
-import uuid
+import time
 from enum import Enum
 from typing import Optional
 import urllib.parse
@@ -21,10 +21,10 @@ THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
 @dataclass
 class Result:
-    id: Optional[str] = None
     url: Optional[str] = None
     snippet: Optional[str] = None
     title: Optional[str] = None
+    timestamp_in_millis: Optional[int]=None
 
 class QueryType(Enum):
     ALL_THESE_WORDS_PARAMETER_DESCRIPTION = "Type the important words: tri-colour rat terrier"
@@ -51,12 +51,12 @@ class Language():
     DESCRIPTION = "Find pages in the language that you select."
     PARAMETER = "lr"
 
-    def __init__(self, language_code: Optional[str] = "eng"):
+    def __init__(self, language_code: Optional[str] = "en"):
         self.language_code = language_code.lower()
         path = op.join(THIS_FOLDER, "..", "resources","languages.json")
         with open(path) as f:
             data = json.load(f)
-        if self.language_code != "eng":
+        if self.language_code != "en":
             for item in data:
                 if item["code"] == self.language_code:
                     break
@@ -80,7 +80,7 @@ class Region():
         if self.region_code != "":
             for item in data:
                 if item["code"] == self.region_code:
-                    self.region_code = "country" + region_code
+                    self.region_code = "country" + region_code.upper()
                     break
             else:
                 print("Region not found, your ip region will be set")
@@ -90,7 +90,7 @@ class LastUpdate(Enum):
     DESCRIPTION = "Find pages updated within the time that you specify."
     PARAMETER = "as_qdr"
     ANYTIME = "all"
-    PAST24Hours = "d"
+    PAST_24_HOURS = "d"
     PAST_WEEK = "w"
     PAST_MONTH = "m"
     PAST_YEAR = "y"
@@ -159,13 +159,12 @@ def search(query: Query,
            usage_right: Optional[UsageRight] = UsageRight.NOT_FILTERED_BY_LICENSE,
            num_results: Optional[int] = 10,
            proxy=None):
-    # encode url with %values
-    print(f"query = {query}")
+
     escaped_search_query = urllib.parse.quote(query.query).replace('%20', '+')
 
     google_url = f'https://www.google.com/search?{query.query_type.value}={escaped_search_query}&' \
                  f'num={num_results}&' \
-                 f'{Language.PARAMETER}={language.language_code}&' \
+                 f'{Language.PARAMETER}=lang_{language.language_code.lower()}&' \
                  f'{Region.PARAMETER}={region.region_code}&' \
                  f'{LastUpdate.PARAMETER.value}={last_update.value}&' \
                  f'{SiteOrDomain.PARAMETER}={site_or_domain.site_or_domain}&' \
@@ -175,18 +174,16 @@ def search(query: Query,
                  f'{UsageRight.PARAMETER.value}={usage_right.value}'
 
     def fetch_results():
-        #todo optimize proxy
-        p=None
+        proxies=None
         if proxy is not None:
-                p = {"http": "http://"+proxy, "https": "http://"+proxy}
-                print(f"Im using with this proxy: {p}")
+                proxies = {"http": "http://"+proxy, "https": "http://"+proxy}
         user_agent = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
                           'Chrome/61.0.3163.100 Safari/537.36'}
         print(f"Url: {google_url}")
         response = None
         try:
-            response = requests.get(google_url, proxies=p, headers=user_agent)
+            response = requests.get(google_url, proxies=proxies, headers=user_agent)
 
             response.raise_for_status()
         except requests.exceptions.HTTPError as errh:
@@ -208,8 +205,8 @@ def search(query: Query,
             title = result.find('h3')
             snippet = result.find("div", class_="VwiC3b")
             if link and title and snippet:
-                yield Result(id=str(uuid.uuid4()), title=title.text.strip(), snippet=snippet.text.strip(),
-                           url=link['href'])
+                yield Result(title=title.text.strip(), snippet=snippet.text.strip(),
+                           url=link['href'], timestamp_in_millis=int(time.time()*1000))
 
     html = fetch_results()
     return list(parse_results(html))
