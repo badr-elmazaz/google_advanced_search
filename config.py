@@ -12,3 +12,4 @@ REGION_DEFAULT = CONFIG["google"]["default"]["REGION_DEFAULT"]
 MAX_RESULTS_DEFAULT = CONFIG["google"]["default"]["MAX_RESULTS_DEFAULT"]
 AGREE_BUTTON = CONFIG["selenium"]["id"]["agree_button"]
 NEXT_BUTTON = CONFIG["selenium"]["id"]["next_button"]
+PROXY_TEST_URL = "http://www.google.com"

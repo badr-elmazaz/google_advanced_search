@@ -30,7 +30,8 @@ with open("./resources/languages.json") as f:
     languages = json.load(f)
 
 
-
+#todo best way to manage the resources
+#todo test proxy
 
 class Query():
     def __init__(self, query: str):
@@ -145,7 +146,8 @@ class GoogleAdvancedSearch():
     def __init__(self):
         self.htmls = []
         self.ua = UserAgent()
-        self.PROXY_TEST_URL: str = "http://www.google.com"
+        self.google_url = None
+
 
     def _create_proxy_for_requests(self, proxy: str) -> dict:
         if not proxy:
@@ -162,7 +164,7 @@ class GoogleAdvancedSearch():
         if not proxy:
             return False
         try:
-            response = requests.get(self.PROXY_TEST_URL, proxies=proxy)
+            response = requests.get(PROXY_TEST_URL, proxies=proxy)
             if response.ok:
                 return True
             return False
@@ -261,7 +263,7 @@ class GoogleAdvancedSearch():
                      f'{UsageRight.PARAMETER.value}={usage_right}'
 
         print(google_url)
-
+        self.google_url=google_url
         if not use_browser:
             proxy = self._create_proxy_for_requests(proxy)
             return self._get_results_with_http_client(google_url, proxy)
@@ -291,4 +293,4 @@ class GoogleAdvancedSearch():
             if len(results) >= max_results or not is_there_next_btn:
                 break
             driver.find_element(By.ID, NEXT_BUTTON).click()
-        return results, google_url
+        return results
