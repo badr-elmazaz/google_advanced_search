@@ -1,120 +1,106 @@
 # Standard Python libraries.
-import time
-from enum import Enum
-from typing import Optional
-import urllib.parse
-import sys
-import os.path as op
 import json
 import os
-from dataclasses import dataclass
-
-
+import os.path as op
+import sys
+import traceback
+import urllib.parse
+from enum import Enum
+from typing import Optional, ClassVar
+from time import sleep
+import requests
 # Third party Python libraries.
 from bs4 import BeautifulSoup
-import requests
-
+from config import *
+from pydantic import BaseModel, validator, Field
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from dataclasses import dataclass
+from fake_useragent import UserAgent
+from webdriver_manager.chrome import ChromeDriverManager
 
 __version__ = "0.0.1"
 THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
+with open("./resources/countries.json") as f:
+    countries = json.load(f)
+with open("./resources/languages.json") as f:
+    languages = json.load(f)
 
-@dataclass
-class Result:
-    url: Optional[str] = None
-    snippet: Optional[str] = None
-    title: Optional[str] = None
-    timestamp_in_millis: Optional[int]=None
 
-class QueryType(Enum):
-    ALL_THESE_WORDS_PARAMETER_DESCRIPTION = "Type the important words: tri-colour rat terrier"
-    THESE_EXACT_WORDS_PARAMETER_DESCRIPTION = "Put exact words in quotes: \"rat terrier\""
-    ANY_OF_THESE_WORDS_PARAMETER_DESCRIPTION = "Type OR between all the words you want: miniature OR standard in search bar"
-    NONE_OF_THESE_WORDS_PARAMETER_DESCRIPTION = "Put a minus sign just before words that you don't want: -rodent, -\"Jack Russell\""
-    NUMBERS_RANGING_FROM_TO_PARAMETER_DESCRIPTION = "Put two full stops between the numbers and add a unit of measurement: 10..35 kg, £300..£500, 2010..2011 in search bar"
-
-    ALL_THESE_WORDS_PARAMETER = "as_q"
-    THESE_EXACT_WORDS_PARAMETER = "as_epq"
-    ANY_OF_THESE_WORDS_PARAMETER = "as_oq"
-    NONE_OF_THESE_WORDS_PARAMETER = "as_eq"
-    NUMBERS_RANGING_FROM_PARAMETER = "as_nlo"
-    NUMBERS_RANGING_TO_PARAMETER = "as_nhi"
 
 
 class Query():
-    def __init__(self, query: str, query_type: QueryType):
+    def __init__(self, query: str):
         self.query = query
-        self.query_type = query_type
 
 
-class Language():
-    DESCRIPTION = "Find pages in the language that you select."
-    PARAMETER = "lr"
+class Language(BaseModel):
+    PARAMETER: ClassVar[str] = "lr"
+    language_code: str = Field(LANGUAGE_DEFAULT, description="Find pages in the language that you select.")
 
-    def __init__(self, language_code: Optional[str] = "en"):
-        self.language_code = language_code.lower()
-        path = op.join(THIS_FOLDER, "..", "resources","languages.json")
-        with open(path) as f:
-            data = json.load(f)
-        if self.language_code != "en":
-            for item in data:
-                if item["code"] == self.language_code:
-                    break
+    @validator("language_code")
+    def validate_language_code(cls, language_code):
+        if language_code == LANGUAGE_DEFAULT:
+            return "lang_" + LANGUAGE_DEFAULT
+        language_code = language_code.lower()
+
+        if language_code != LANGUAGE_DEFAULT:
+            for language in languages:
+                if language["code"] == language_code:
+                    return "lang_" + language_code
+
             else:
-                print("Language not found, eng will set by default")
+                return "lang_" + LANGUAGE_DEFAULT
 
 
-class Region():
-    DESCRIPTION = "Find pages published in a particular region."
-    PARAMETER = "cr"
+class Region(BaseModel):
+    PARAMETER: ClassVar[str] = "cr"
     ANY_REGION = ""
+    region_code: str = Field(REGION_DEFAULT, description="Find pages published in a particular region.")
 
-    def __init__(self, region_code: str = ""):
-        if region_code == None:
-            region_code = ""
-        self.region_code = region_code.upper()
-        path = op.join(THIS_FOLDER, "..", "resources", "countries.json")
-        with open(path) as f:
-            data = json.load(f)
+    @validator("region_code")
+    def validate_language_code(cls, region_code):
+        ANY_REGION = ""
+        if region_code == ANY_REGION:
+            return REGION_DEFAULT
 
-        if self.region_code != "":
-            for item in data:
-                if item["code"] == self.region_code:
-                    self.region_code = "country" + region_code.upper()
-                    break
-            else:
-                print("Region not found, your ip region will be set")
+        region_code = region_code.upper()
+
+        for country in countries:
+            if country["code"] == region_code:
+                return "country" + region_code
+        else:
+            return ANY_REGION
 
 
 class LastUpdate(Enum):
     DESCRIPTION = "Find pages updated within the time that you specify."
     PARAMETER = "as_qdr"
     ANYTIME = "all"
-    PAST_24_HOURS = "d"
+    PAST24Hours = "d"
     PAST_WEEK = "w"
     PAST_MONTH = "m"
     PAST_YEAR = "y"
 
 
-class SiteOrDomain():
-    DESCRIPTION = "Search one site (like wikipedia.org ) or limit your results to a domain like .edu, .org or .gov"
-    PARAMETER = "as_sitesearch"
-
-    def __init__(self, site_or_domain=""):
-        # todo regex control input
-        self.site_or_domain = site_or_domain
+class SiteOrDomain(BaseModel):
+    PARAMETER: ClassVar[str] = "as_sitesearch"
+    site_or_domain: str = Field("",
+                                description="Search one site (like wikipedia.org ) or limit your results to a domain like .edu, .org or .gov")
 
 
-class TermsAppearing():
+class TermsAppearing(BaseModel):
     DESCRIPTION = "Search for terms in the whole page, page title or web address, or links to the page you're looking for"
-    PARAMETER = "as_occt"
-
-    def __init__(self, terms_appearing=""):
-        # todo regex control input
-        self.terms_appearing = terms_appearing
+    PARAMETER: ClassVar[str] = "as_occt"
+    terms_appearing: str = Field("",
+                                 description="Search for terms in the whole page, page title or web address, or links to the page you're looking for")
 
 
 class SafeSearch(Enum):
+    # todo do not show description in json schema
     DESCRIPTION = "Tell SafeSearch whether to filter sexually explicit content."
     PARAMETER = "safe"
     HIDE_EXPLICIT_RESULT = "safe"
@@ -132,86 +118,177 @@ class FileType(Enum):
     GOOGLE_EARTH_KMZ = "kmz"
     MICROSOFT_EXCEL = "xls"
     MICROSOFT_POWERPOINT = "ppt"
-    MICROSOFT_WOERD = "doc"
+    MICROSOFT_WORD = "doc"
     RICH_TEXT_FORMAT = "rtf"
     SHOCK_WAVE_FLASH = "swf"
 
 
 class UsageRight(Enum):
-    DESCRIPTION = "Find pages that you are free to use yourself."
-    PARAMETER = "tbs"
+    # todo do not show parameter in json schema
+    PARAMETER: ClassVar[str] = "tbs"
     # IT IS EMPTY STRING
     NOT_FILTERED_BY_LICENSE = ""
     FREE_USE_OR_SHARE = "sur%3Af"
     FREE_USE_OR_SHARE_EVEN_COMMERCIALY = "sur%3Afc"
     FREE_USE_OR_SHARE_OR_MODIFY = "sur%3Afm"
-    FREE_USE_OR_SHARE_OR_MODIFY_EVEN_COMMERCIALY = "sur%3Afmc"
+    FREE_USE_OR_SHARE_OR_MODIFY_EVEN_COMMERCIALLY = "sur%3Afmc"
 
 
-def search(query: Query,
-           language: Optional[Language] = Language(),
-           region: Optional[Region] = Region(),
-           last_update: Optional[LastUpdate] = LastUpdate.ANYTIME,
-           site_or_domain: Optional[SiteOrDomain] = SiteOrDomain(),
-           terms_appearing: Optional[TermsAppearing] = TermsAppearing(),
-           safe_search: Optional[SafeSearch] = SafeSearch.SHOW_EXPLICIT_RESULT,
-           file_type: Optional[FileType] = FileType.ANY_FORMAT,
-           usage_right: Optional[UsageRight] = UsageRight.NOT_FILTERED_BY_LICENSE,
-           num_results: Optional[int] = 10,
-           proxy=None):
+@dataclass
+class Result:
+    url: Optional[str] = None
+    snippet: Optional[str] = None
+    title: Optional[str] = None
 
-    escaped_search_query = urllib.parse.quote(query.query).replace('%20', '+')
 
-    google_url = f'https://www.google.com/search?{query.query_type.value}={escaped_search_query}&' \
-                 f'num={num_results}&' \
-                 f'{Language.PARAMETER}=lang_{language.language_code.lower()}&' \
-                 f'{Region.PARAMETER}={region.region_code}&' \
-                 f'{LastUpdate.PARAMETER.value}={last_update.value}&' \
-                 f'{SiteOrDomain.PARAMETER}={site_or_domain.site_or_domain}&' \
-                 f'{TermsAppearing.PARAMETER}={terms_appearing.terms_appearing}&' \
-                 f'{SafeSearch.PARAMETER.value}={safe_search.value}&' \
-                 f'{FileType.PARAMETER.value}={file_type.value}&' \
-                 f'{UsageRight.PARAMETER.value}={usage_right.value}'
+class GoogleAdvancedSearch():
+    def __init__(self):
+        self.htmls = []
+        self.ua = UserAgent()
+        self.PROXY_TEST_URL: str = "http://www.google.com"
 
-    def fetch_results():
-        proxies=None
-        if proxy is not None:
-                proxies = {"http": "http://"+proxy, "https": "http://"+proxy}
-        user_agent = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
-                          'Chrome/61.0.3163.100 Safari/537.36'}
-        print(f"Url: {google_url}")
-        response = None
+    def _create_proxy_for_requests(self, proxy: str) -> dict:
+        if not proxy:
+            return None
+        # normalize proxy
+        proxy = proxy.replace("http://", "").replace("https://", "")
+        proxy_dict = {
+            "http": f"http://{proxy}",
+            "https": f"https://{proxy}"
+        }
+        return proxy_dict
+
+    def _is_a_valid_proxy(self, proxy: dict) -> bool:
+        if not proxy:
+            return False
         try:
-            response = requests.get(google_url, proxies=proxies, headers=user_agent)
+            response = requests.get(self.PROXY_TEST_URL, proxies=proxy)
+            if response.ok:
+                return True
+            return False
+        except:
+            return False
 
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as errh:
-            print("Http Error:", errh)
-        except requests.exceptions.ConnectionError as errc:
-            print("Error Connecting:", errc)
-        except requests.exceptions.Timeout as errt:
-            print("Timeout Error:", errt)
+    def _get_results_with_http_client(self, google_url: str, proxy: dict):
+        def fetch_results():
+            headers = {
+                'User-Agent': self.ua.chrome
+            }
+            headers = None
+            try:
+                return requests.get(google_url, proxies=proxy, headers=headers).text
+            except:
+                return None
 
-        return response.text
+        html = fetch_results()
+        if html:
+            self.htmls.append(html)
+            return self._parse_html(html)
+        return None
 
-    def parse_results(raw_html):
+    def _parse_html(self, raw_html: str):
         soup = BeautifulSoup(raw_html, 'html.parser')
         result_block = soup.find_all('div', attrs={'class': 'g'})
 
-
+        results = []
         for result in result_block:
             link = result.find('a', href=True)
             title = result.find('h3')
             snippet = result.find("div", class_="VwiC3b")
+
             if link and title and snippet:
-                yield Result(title=title.text.strip(), snippet=snippet.text.strip(),
-                           url=link['href'], timestamp_in_millis=int(time.time()*1000))
+                results.append(Result(title=title.text, snippet=snippet.text,
+                                      url=link['href']))
+        return results
 
-    html = fetch_results()
-    return list(parse_results(html))
+    def _get_new_browser_session(self, proxy: str, remote: bool):
+        options = Options()
+        options.add_argument('--headless')
+        if remote:
+            if proxy != None:
+                options.add_argument(f"--proxy-server={proxy}")
+            try:
 
+                # url = f"http://{SELENIUM_HUB_HOST}:{SELENIUM_HUB_PORT}/{SELENIUM_HUB_LINK}"
+                url = f"http://"
 
-if __name__ == '__main__':
-    print(search(query=Query(sys.argv[1], QueryType.ALL_THESE_WORDS_PARAMETER), num_results=int(sys.argv[3]),
-                 language=Language(sys.argv[2])))
+                driver = webdriver.Remote(command_executor=url,
+                                          desired_capabilities=DesiredCapabilities.FIREFOX)
+                driver.maximize_window()
+            except Exception as e:
+                print("Failed to connect to selenium hub")
+                traceback.print_exc()
+                sys.exit()
+            return driver
+
+        driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+        return driver
+
+    def _set_new_search(self):
+        self.htmls = []
+
+    def _escape_query(self, query) -> str:
+        return urllib.parse.quote(query).replace('%20', '+')
+
+    def search(self, query: str,
+               language: Optional[str] = "en",
+               region: Optional[str] = "",
+               last_update: Optional[str] = LastUpdate.ANYTIME.value,
+               site_or_domain: Optional[str] = "",
+               terms_appearing: Optional[str] = TermsAppearing().terms_appearing,
+               safe_search: Optional[str] = SafeSearch.SHOW_EXPLICIT_RESULT.value,
+               file_type: Optional[FileType] = FileType.ANY_FORMAT.value,
+               usage_right: Optional[UsageRight] = UsageRight.NOT_FILTERED_BY_LICENSE.value,
+               max_results: Optional[int] = MAX_RESULTS_DEFAULT,
+               proxy=None, use_browser: bool = False):
+        self._set_new_search()
+
+        # if not max_results:
+        #     max_results = self.MAX_RESULTS_DEFAULT
+
+        escaped_search_query = self._escape_query(query)
+        # todo better way to manage query type
+        query_type = "as_q"
+        google_url = f'https://www.google.com/search?{query_type}={escaped_search_query}&' \
+                     f'num={max_results}&' \
+                     f'{Language.PARAMETER}={language}&' \
+                     f'{Region.PARAMETER}={region}&' \
+                     f'{LastUpdate.PARAMETER.value}={last_update}&' \
+                     f'{SiteOrDomain.PARAMETER}={site_or_domain}&' \
+                     f'{TermsAppearing.PARAMETER}={terms_appearing}&' \
+                     f'{SafeSearch.PARAMETER.value}={safe_search}&' \
+                     f'{FileType.PARAMETER.value}={file_type}&' \
+                     f'{UsageRight.PARAMETER.value}={usage_right}'
+
+        print(google_url)
+
+        if not use_browser:
+            proxy = self._create_proxy_for_requests(proxy)
+            return self._get_results_with_http_client(google_url, proxy)
+        driver = self._get_new_browser_session(proxy, False)
+        driver.get(google_url)
+        sleep(1)
+        #agree the google policy
+        try:
+            driver.find_element(By.ID, AGREE_BUTTON).click()
+            sleep(1)
+        except:
+            pass
+
+        results = []
+        while True:
+            self.htmls.append(driver.page_source)
+            driver.execute_script("window.scrollTo(0, 5000)")
+            sleep(1)
+            results.extend(self._parse_html(driver.page_source))
+            is_there_next_btn = False
+            try:
+                driver.find_element(By.ID, NEXT_BUTTON)
+                is_there_next_btn = True
+            except:
+                #there is no button next
+                pass
+            if len(results) >= max_results or not is_there_next_btn:
+                break
+            driver.find_element(By.ID, NEXT_BUTTON).click()
+        return results, google_url

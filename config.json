@@ -1,0 +1,15 @@
+{
+  "selenium": {
+    "id": {
+      "agree_button": "L2AGLb",
+      "next_button": "pnnext"
+    }
+  },
+  "google": {
+    "default": {
+      "LANGUAGE_DEFAULT": "en",
+      "REGION_DEFAULT": "",
+      "MAX_RESULTS_DEFAULT": 10
+    }
+  }
+}
