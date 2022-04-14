@@ -7,9 +7,11 @@
   },
   "google": {
     "default": {
-      "LANGUAGE_DEFAULT": "en",
-      "REGION_DEFAULT": "",
-      "MAX_RESULTS_DEFAULT": 10
+      "LANGUAGE_CODE_DEFAULT": "en",
+      "REGION_CODE_DEFAULT": "country",
+      "MAX_RESULTS_DEFAULT": 10,
+      "SITE_OR_DOMAIN_DEFAULT": "",
+      "TERMS_APPEARING_DEFAULT": ""
     }
   }
 }
