@@ -29,6 +29,8 @@ THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 # todo add logs
 #todo add asyncio
 #todo add screenshots
+#todo add first results feature
+#todo add other search engines
 
 
 class QueryType(Enum):
@@ -185,7 +187,7 @@ class GoogleAdvancedSearch():
         except:
             return False
 
-    def _get_results_with_http_client(self, google_url: str, with_html: bool, proxy: dict):
+    def _fetch_htmls_with_http_client(self, google_url: str, proxy: dict) -> list[str]:
         def fetch_results():
             headers = {
                 'User-Agent': self._ua.chrome
@@ -197,32 +199,69 @@ class GoogleAdvancedSearch():
 
         google_search_html = fetch_results()
         if google_search_html:
-            if not self.htmls:
-                self.htmls = []
-            self.htmls.append(google_search_html)
-            return self._parse_html(google_search_html, with_html)
+            return [google_search_html]
+
         return None
 
-    def _parse_html(self, raw_html: str, with_html: bool) -> list[Result]:
-        soup = BeautifulSoup(raw_html, 'html.parser')
-        result_block = soup.find_all('div', attrs={'class': 'g'})
+    def _fetch_htmls_and_save_results_with_browser(self, google_url: str, with_html: bool, proxy: str, max_results: int):
+        driver = self._get_new_browser_session(proxy, False)
+        if not driver:
+            return None
+        driver.get(google_url)
+        sleep(1)
+        # agree the google policy
+        try:
+            driver.find_element(By.ID, AGREE_BUTTON).click()
+            sleep(1)
+        except:
+            pass
+        while True:
+            driver.execute_script("window.scrollTo(0, 5000)")
+            sleep(1)
+            partial_results = self._parse_html_in_results(driver.page_source, with_html, max_results)
+            #max results reached
+            if not partial_results:
+                break
+            self.results.extend(partial_results)
+            self.htmls.append(driver.page_source)
+            is_there_next_btn = False
+            try:
+                driver.find_element(By.ID, NEXT_BUTTON)
+                is_there_next_btn = True
+            except:
+                # there is no button next
+                pass
+            if not is_there_next_btn:
+                break
+            driver.find_element(By.ID, NEXT_BUTTON).click()
+        driver.quit()
 
+
+    def _parse_html_in_results(self, raw_html: str, with_html: bool, max_results: int) -> list[Result]:
         results = []
-        for result in result_block:
-            link = result.find('a', href=True)
-            title = result.find('h3')
-            snippet = result.find("div", class_="VwiC3b")
+        if len(self.results) < max_results:
+            soup = BeautifulSoup(raw_html, 'html.parser')
+            result_block = soup.find_all('div', attrs={'class': 'g'})
 
-            if link and title and snippet:
-                html = None
-                if with_html:
-                    try:
-                        html = requests.get(link["href"]).text
-                    except:
-                        pass
-                    #todo add logs here
-                results.append(Result(title=title.text, snippet=snippet.text,
-                                      url=link["href"], html=html))
+
+            for result in result_block:
+                link = result.find('a', href=True)
+                title = result.find('h3')
+                snippet = result.find("div", class_="VwiC3b")
+
+                if link and title and snippet:
+                    if len(self.results)+len(results) < max_results:
+                        html = None
+                        if with_html:
+                            try:
+                                html = requests.get(link["href"]).text
+                            except:
+                                pass
+                            #todo add logs here
+                        results.append(Result(title=title.text, snippet=snippet.text,
+                                              url=link["href"], html=html))
+                    else:
+                        break
         return results
 
     def _get_new_browser_session(self, proxy: str, remote: bool):
@@ -250,6 +289,7 @@ class GoogleAdvancedSearch():
 
     def _set_new_search(self):
         self.htmls = []
+        self.results = []
 
     def _escape_query(self, query) -> str:
         return urllib.parse.quote(query).replace('%20', '+')
@@ -286,36 +326,11 @@ class GoogleAdvancedSearch():
         print(google_url)
         self.google_url = google_url
         if not use_browser:
-            proxy = self._create_proxy_for_requests(proxy)
-            self.results = self._get_results_with_http_client(google_url, with_html, proxy)
+            proxy_dict = self._create_proxy_for_requests(proxy)
+            self.htmls = self._fetch_htmls_with_http_client(google_url, proxy_dict)
+            for html in self.htmls:
+                results = self._parse_html_in_results(html, with_html, max_results)
+                self.results.extend(results)
         else:
-            driver = self._get_new_browser_session(proxy, False)
-            driver.get(google_url)
-            sleep(1)
-            # agree the google policy
-            try:
-                driver.find_element(By.ID, AGREE_BUTTON).click()
-                sleep(1)
-            except:
-                pass
-
-            results = []
-            while True:
-                if not self.htmls:
-                    self.htmls = []
-                self.htmls.append(driver.page_source)
-                driver.execute_script("window.scrollTo(0, 5000)")
-                sleep(1)
-                results.extend(self._parse_html(driver.page_source, with_html))
-                is_there_next_btn = False
-                try:
-                    driver.find_element(By.ID, NEXT_BUTTON)
-                    is_there_next_btn = True
-                except:
-                    # there is no button next
-                    pass
-                if len(results) >= max_results or not is_there_next_btn:
-                    break
-                driver.find_element(By.ID, NEXT_BUTTON).click()
-            self.results = results
+            self._fetch_htmls_and_save_results_with_browser(google_url, with_html, proxy, max_results)
         return self.results
