@@ -7,7 +7,8 @@
     "selenium_grid": {
       "host": "localhost",
       "port": "4444",
-      "link": "wd/hub"
+      "link": "wd/hub",
+      "BROWSER_DELAY": 2
     }
   },
   "google": {

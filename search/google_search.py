@@ -32,6 +32,9 @@ THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 # todo add first results feature
 # todo add other search engines
 # todo add tests
+# todo get all pages results with max results equals to -1
+# todo set custom exceptions
+# todo add python documentation
 
 
 class QueryType(Enum):
@@ -160,6 +163,8 @@ class Result:
 
 
 class GoogleAdvancedSearch:
+    browser_delay = BROWSER_DELAY_DEFAULT
+
     def __init__(self):
         self.htmls = None
         self._ua = UserAgent()
@@ -182,23 +187,33 @@ class GoogleAdvancedSearch:
             if isinstance(port, int):
                 return str(port)
 
-
         @validator("_link_selenium_hub")
         def validate_all(cls, _link_selenium_hub, values):
-            #todo complete here
+            # todo complete here
             if (values["SELENIUM_HUB_HOST"] != SELENIUM_HUB_HOST_DEFAULT and not values["SELENIUM_HUB_HOST"] is None) or \
-                    (values["SELENIUM_HUB_PORT"] != SELENIUM_HUB_PORT_DEFAULT and not values["SELENIUM_HUB_PORT"] is None) or \
-                    (values["SELENIUM_HUB_LINK"] != SELENIUM_HUB_LINK_DEFAULT and not values["SELENIUM_HUB_LINK"] is None):
-                _link_selenium_hub=f"http://{values['SELENIUM_HUB_HOST']}:{values['SELENIUM_HUB_PORT']}/{values['SELENIUM_HUB_LINK']}"
+                    (values["SELENIUM_HUB_PORT"] != SELENIUM_HUB_PORT_DEFAULT and not values[
+                                                                                          "SELENIUM_HUB_PORT"] is None) or \
+                    (values["SELENIUM_HUB_LINK"] != SELENIUM_HUB_LINK_DEFAULT and not values[
+                                                                                          "SELENIUM_HUB_LINK"] is None):
+                _link_selenium_hub = f"http://{values['SELENIUM_HUB_HOST']}:{values['SELENIUM_HUB_PORT']}/{values['SELENIUM_HUB_LINK']}"
                 try:
                     requests.get(_link_selenium_hub)
                 except requests.exceptions.ConnectionError as e:
                     print("Failed to connect to selenium grid, I will use chrome driver")
                     print(e)
                     return None
+
         @property
         def link_selenium_hub(self):
             return self._link_selenium_hub
+
+        @link_selenium_hub.setter
+        def link_selenium_hub(self, new_link_selenium_hub):
+            try:
+                requests.get(new_link_selenium_hub)
+                self._link_selenium_hub = new_link_selenium_hub
+            except:
+                raise ValueError("Failed to connect to selenium grid, I will use chrome driver")
 
     def _create_proxy_for_requests(self, proxy: str) -> dict:
         if not proxy:
@@ -244,16 +259,16 @@ class GoogleAdvancedSearch:
         if not driver:
             return None
         driver.get(google_url)
-        sleep(1)
+        sleep(self.browser_delay)
         # agree the google policy
         try:
             driver.find_element(By.ID, AGREE_BUTTON).click()
-            sleep(1)
+            sleep(self.browser_delay)
         except:
             pass
         while True:
             driver.execute_script("window.scrollTo(0, 5000)")
-            sleep(1)
+            sleep(self.browser_delay)
             partial_results = self._parse_html_in_results(driver.page_source, with_html, max_results)
             # max results reached
             if not partial_results:
@@ -272,10 +287,9 @@ class GoogleAdvancedSearch:
             driver.find_element(By.ID, NEXT_BUTTON).click()
         driver.quit()
 
-
     def _parse_html_in_results(self, raw_html: str, with_html: bool, max_results: int) -> list[Result]:
         results = []
-        if len(self.results) < max_results:
+        if len(self.results) < max_results and max_results != -1:
             soup = BeautifulSoup(raw_html, 'html.parser')
             result_block = soup.find_all('div', attrs={'class': 'g'})
             for result in result_block:
@@ -305,18 +319,15 @@ class GoogleAdvancedSearch:
             chrome_options.add_argument(f"--proxy-server={proxy}")
         if options.use_selenium_grid:
             try:
+                # todo fix here
                 url = options.link_selenium_hub()
                 driver = webdriver.Remote(command_executor=url,
                                           desired_capabilities=DesiredCapabilities.FIREFOX)
                 driver.maximize_window()
             except Exception as e:
                 print("Failed to connect to selenium hub")
-                traceback.print_exc()
-                sys.exit()
+                print(e)
             return driver
-
-
-
 
         driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
         return driver
@@ -327,6 +338,12 @@ class GoogleAdvancedSearch:
 
     def _escape_query(self, query) -> str:
         return urllib.parse.quote(query).replace('%20', '+')
+
+    def _validate_inputs(self, max_results: int):
+        if max_results == 0 or max_results < -1:
+            print(f"max_results must be greater than 0 or -1, I will use default value:\t{MAX_RESULTS_DEFAULT}")
+            max_results = MAX_RESULTS_DEFAULT
+        return max_results
 
     def search(self, query: str,
                query_type: Optional[QueryType] = QueryType.ALL_THESE_WORDS_PARAMETER,
@@ -341,6 +358,7 @@ class GoogleAdvancedSearch:
                max_results: Optional[int] = MAX_RESULTS_DEFAULT,
                options=Options()):
 
+        max_results = self._validate_inputs(max_results)
         self._set_new_search()
         language = Language(language_code=language)
         region = Region(region_code=region)
@@ -357,7 +375,7 @@ class GoogleAdvancedSearch:
                      f'{FileType.PARAMETER.value}={file_type}&' \
                      f'{UsageRight.PARAMETER.value}={usage_right}'
 
-        print(google_url)
+        print(f"Search URL ==> {google_url}")
         self.google_url = google_url
         if not options.use_browser:
             proxy_dict = self._create_proxy_for_requests(options.proxy)
