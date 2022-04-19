@@ -3,6 +3,11 @@
     "id": {
       "agree_button": "L2AGLb",
       "next_button": "pnnext"
+    },
+    "selenium_grid": {
+      "host": "localhost",
+      "port": "4444",
+      "link": "wd/hub"
     }
   },
   "google": {

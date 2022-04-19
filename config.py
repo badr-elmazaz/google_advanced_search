@@ -26,3 +26,11 @@ SEARCH DEFAULT VALUES
 AGREE_BUTTON = CONFIG["selenium"]["id"]["agree_button"]
 NEXT_BUTTON = CONFIG["selenium"]["id"]["next_button"]
 PROXY_TEST_URL = "http://www.google.com"
+
+
+"""
+selenium grid
+"""
+SELENIUM_HUB_HOST_DEFAULT=CONFIG["selenium"]["selenium_grid"]["SELENIUM_HUB_HOST"]
+SELENIUM_HUB_PORT_DEFAULT=CONFIG["selenium"]["selenium_grid"]["SELENIUM_HUB_PORT"]
+SELENIUM_HUB_LINK_DEFAULT=CONFIG["selenium"]["selenium_grid"]["SELENIUM_HUB_LINK"]
