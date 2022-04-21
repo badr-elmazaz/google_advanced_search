@@ -4,12 +4,8 @@
       "agree_button": "L2AGLb",
       "next_button": "pnnext"
     },
-    "selenium_grid": {
-      "host": "localhost",
-      "port": "4444",
-      "link": "wd/hub",
-      "BROWSER_DELAY": 2
-    }
+    "BROWSER_DELAY": 2,
+    "GOOGLE_URL": "https://www.google.com/"
   },
   "google": {
     "default": {

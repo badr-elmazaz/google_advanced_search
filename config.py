@@ -20,18 +20,18 @@ MAX_RESULTS_DEFAULT = CONFIG["google"]["default"]["MAX_RESULTS_DEFAULT"]
 SITE_OR_DOMAIN_DEFAULT = CONFIG["google"]["default"]["SITE_OR_DOMAIN_DEFAULT"]
 TERMS_APPEARING_DEFAULT = CONFIG["google"]["default"]["TERMS_APPEARING_DEFAULT"]
 
+
+
 """
 SEARCH DEFAULT VALUES
 """
 AGREE_BUTTON = CONFIG["selenium"]["id"]["agree_button"]
 NEXT_BUTTON = CONFIG["selenium"]["id"]["next_button"]
 PROXY_TEST_URL = "http://www.google.com"
+BROWSER_DELAY_DEFAULT=CONFIG["selenium"]["BROWSER_DELAY"]
+GOOGLE_URL_DEFAULT=CONFIG["selenium"]["GOOGLE_URL"]
 
 
-"""
-selenium grid
-"""
-SELENIUM_HUB_HOST_DEFAULT=CONFIG["selenium"]["selenium_grid"]["SELENIUM_HUB_HOST"]
-SELENIUM_HUB_PORT_DEFAULT=CONFIG["selenium"]["selenium_grid"]["SELENIUM_HUB_PORT"]
-SELENIUM_HUB_LINK_DEFAULT=CONFIG["selenium"]["selenium_grid"]["SELENIUM_HUB_LINK"]
-BROWSER_DELAY_DEFAULT=CONFIG["selenium"]["selenium_grid"]["BROWSER_DELAY"]
+QUERY_DEFAULT="wikipedia"
+
+

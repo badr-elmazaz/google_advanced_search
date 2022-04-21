@@ -1,13 +1,16 @@
+#!/usr/local/bin/python
+# -*- coding: utf-8 -*-
+
+"""This module is used to search for a given query in Google, Bing and DuckDuckGo."""
+
 # Standard Python libraries.
 import os
-import sys
-import traceback
 import urllib.parse
 from dataclasses import dataclass
 from enum import Enum
 from time import sleep
 from typing import Optional, ClassVar, Union
-from config import *
+
 # Third party Python libraries.
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
@@ -15,11 +18,23 @@ from pydantic import BaseModel, validator, Field
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from webdriver_manager.chrome import ChromeDriverManager
 import requests
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-__version__ = "0.0.1"
+# Own Modules
+from config import *
+
+__author__ = "Badr El Mazaz"
+__license__ = "GPL"
+__version__ = "1.0.0"
+__maintainer__ = "Badr El Mazaz"
+__email__ = "badr.elmazaz@gmail.com"
+__status__ = "Development"
+
+
 THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -35,33 +50,27 @@ THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 # todo get all pages results with max results equals to -1
 # todo set custom exceptions
 # todo add python documentation
+# todo add option to get html webpage also with selenium
+# todo use python test module to test the code
 
 
 class QueryType(Enum):
-    ALL_THESE_WORDS_PARAMETER_DESCRIPTION = "Type the important words: tri-colour rat terrier"
-    THESE_EXACT_WORDS_PARAMETER_DESCRIPTION = "Put exact words in quotes: \"rat terrier\""
-    ANY_OF_THESE_WORDS_PARAMETER_DESCRIPTION = "Type OR between all the words you want: miniature OR standard in search bar"
-    NONE_OF_THESE_WORDS_PARAMETER_DESCRIPTION = "Put a minus sign just before words that you don't want: -rodent, -\"Jack Russell\""
-    NUMBERS_RANGING_FROM_TO_PARAMETER_DESCRIPTION = "Put two full stops between the numbers and add a unit of measurement: 10..35 kg, £300..£500, 2010..2011 in search bar"
     """
-    Type the important words: tri-colour rat terrier
+    as_q:
+        Type the important words: tri-colour rat terrier
+    as_epq:
+        Put exact words in quotes: "rat terrier
+    as_oq:
+        Type OR between all the words you want: miniature OR standard in search bar
+    as_eq:
+        Put a minus sign just before words that you don't want: -rodent, -Jack Russell
+    as_nlo, as_nhi:
+        Put two full stops between the numbers and add a unit of measurement: 10..35 kg, £300..£500, 2010..2011 in search bar
     """
     ALL_THESE_WORDS_PARAMETER = "as_q"
-    """
-    Put exact words in quotes: "rat terrier
-    """
     THESE_EXACT_WORDS_PARAMETER = "as_epq"
-    """
-    Type OR between all the words you want: miniature OR standard in search bar
-    """
     ANY_OF_THESE_WORDS_PARAMETER = "as_oq"
-    """
-    Put a minus sign just before words that you don't want: -rodent, -Jack Russell
-    """
     NONE_OF_THESE_WORDS_PARAMETER = "as_eq"
-    """
-    Put two full stops between the numbers and add a unit of measurement: 10..35 kg, £300..£500, 2010..2011 in search bar
-    """
     NUMBERS_RANGING_FROM_PARAMETER = "as_nlo"
     NUMBERS_RANGING_TO_PARAMETER = "as_nhi"
 
@@ -101,7 +110,7 @@ class Region(BaseModel):
 
 
 class LastUpdate(Enum):
-    DESCRIPTION = "Find pages updated within the time that you specify."
+    """Find pages updated within the time that you specify."""
     PARAMETER = "as_qdr"
     ANYTIME = "all"
     PAST24Hours = "d"
@@ -111,27 +120,26 @@ class LastUpdate(Enum):
 
 
 class SiteOrDomain(BaseModel):
+    """Search one site (like wikipedia.org ) or limit your results to a domain like .edu, .org or .gov"""
     PARAMETER: ClassVar[str] = "as_sitesearch"
-    site_or_domain: str = Field(SITE_OR_DOMAIN_DEFAULT,
-                                description="Search one site (like wikipedia.org ) or limit your results to a domain like .edu, .org or .gov")
+    site_or_domain: str = SITE_OR_DOMAIN_DEFAULT
 
 
 class TermsAppearing(BaseModel):
-    DESCRIPTION = "Search for terms in the whole page, page title or web address, or links to the page you're looking for"
+    """Search for terms in the whole page, page title or web address, or links to the page you're looking for"""
     PARAMETER: ClassVar[str] = "as_occt"
-    terms_appearing: str = Field(TERMS_APPEARING_DEFAULT,
-                                 description="Search for terms in the whole page, page title or web address, or links to the page you're looking for")
+    terms_appearing: str = TERMS_APPEARING_DEFAULT
 
 
 class SafeSearch(Enum):
-    DESCRIPTION = "Tell SafeSearch whether to filter sexually explicit content."
+    """Tell SafeSearch whether to filter sexually explicit content."""
     PARAMETER = "safe"
     HIDE_EXPLICIT_RESULT = "safe"
     SHOW_EXPLICIT_RESULT = "images"
 
 
 class FileType(Enum):
-    DESCRIPTION = "Find pages in the format that you prefer."
+    """Find pages in the format that you prefer."""
     PARAMETER = "as_filetype"
     ANY_FORMAT = ""
     ADOBE_ACROBAT_PDF = "pdf"
@@ -154,6 +162,27 @@ class UsageRight(Enum):
     FREE_USE_OR_SHARE_OR_MODIFY_EVEN_COMMERCIALLY = "sur%3Afmc"
 
 
+class GoogleQuery(BaseModel):
+    query: str = Field(QUERY_DEFAULT, description="The query string you want to search for.")
+    query_type: QueryType = QueryType.ALL_THESE_WORDS_PARAMETER
+    language: Language = Language()
+    region: Region = Region()
+    last_update: LastUpdate = LastUpdate.ANYTIME
+    site_or_domain: SiteOrDomain = SiteOrDomain()
+    terms_appearing: TermsAppearing = TermsAppearing()
+    safe_search: SafeSearch = SafeSearch.SHOW_EXPLICIT_RESULT
+    file_type: FileType = FileType.ANY_FORMAT
+    usage_right: UsageRight = UsageRight.NOT_FILTERED_BY_LICENSE
+
+
+class BingQuery(BaseModel):
+    pass
+
+
+class DuckDuckGoQuery(BaseModel):
+    pass
+
+
 @dataclass
 class Result:
     url: Optional[str] = None
@@ -164,6 +193,7 @@ class Result:
 
 class GoogleAdvancedSearch:
     browser_delay = BROWSER_DELAY_DEFAULT
+    # google_url = GOOGLE_URL_DEFAULT
 
     def __init__(self):
         self.htmls = None
@@ -173,47 +203,38 @@ class GoogleAdvancedSearch:
 
     class Options(BaseModel):
         proxy: str = None
-        use_browser: bool = False
+        use_default_browser: bool = False
         with_html: bool = False
-        use_selenium_grid: bool = False
-        SELENIUM_HUB_HOST: str = SELENIUM_HUB_HOST_DEFAULT
-        SELENIUM_HUB_PORT: Union[str, int] = SELENIUM_HUB_PORT_DEFAULT
-        SELENIUM_HUB_LINK: str = SELENIUM_HUB_LINK_DEFAULT
-        _link_selenium_hub: str = None
+        _web_driver = None
 
-        # url = f"http://{SELENIUM_HUB_HOST}:{SELENIUM_HUB_PORT}/{SELENIUM_HUB_LINK}"
-        @validator("SELENIUM_HUB_PORT")
-        def validate_selenium_hub_port(cls, port):
-            if isinstance(port, int):
-                return str(port)
-
-        @validator("_link_selenium_hub")
-        def validate_all(cls, _link_selenium_hub, values):
-            # todo complete here
-            if (values["SELENIUM_HUB_HOST"] != SELENIUM_HUB_HOST_DEFAULT and not values["SELENIUM_HUB_HOST"] is None) or \
-                    (values["SELENIUM_HUB_PORT"] != SELENIUM_HUB_PORT_DEFAULT and not values[
-                                                                                          "SELENIUM_HUB_PORT"] is None) or \
-                    (values["SELENIUM_HUB_LINK"] != SELENIUM_HUB_LINK_DEFAULT and not values[
-                                                                                          "SELENIUM_HUB_LINK"] is None):
-                _link_selenium_hub = f"http://{values['SELENIUM_HUB_HOST']}:{values['SELENIUM_HUB_PORT']}/{values['SELENIUM_HUB_LINK']}"
-                try:
-                    requests.get(_link_selenium_hub)
-                except requests.exceptions.ConnectionError as e:
-                    print("Failed to connect to selenium grid, I will use chrome driver")
-                    print(e)
-                    return None
+        # @validator("web_driver")
+        # def validate_web_driver(cls, web_driver, values):
+        #     if values["use_default_browser"] and web_driver:
+        #         raise ValueError(
+        #             "You can't use a web driver with the default browser, they are mutually exclusive values")
+        #     if web_driver:
+        #         try:
+        #             web_driver.get("https://www.google.com")
+        #         except:
+        #             raise ValueError("The web driver is not valid")
+        #     return web_driver
 
         @property
-        def link_selenium_hub(self):
-            return self._link_selenium_hub
+        def web_driver(self):
+            return self._web_driver
 
-        @link_selenium_hub.setter
-        def link_selenium_hub(self, new_link_selenium_hub):
-            try:
-                requests.get(new_link_selenium_hub)
-                self._link_selenium_hub = new_link_selenium_hub
-            except:
-                raise ValueError("Failed to connect to selenium grid, I will use chrome driver")
+        @web_driver.setter
+        def web_driver(self, web_driver):
+            """Validate web driver If the user changes it after he set already one before"""
+            if web_driver and self.use_default_browser:
+                raise ValueError(
+                    "You can't use a web driver with the default browser, they are mutually exclusive values")
+            if web_driver:
+                try:
+                    web_driver.get("https://www.google.com")
+                except:
+                    raise ValueError("The web driver is not valid")
+            self._web_driver = web_driver
 
     def _create_proxy_for_requests(self, proxy: str) -> dict:
         if not proxy:
@@ -253,12 +274,28 @@ class GoogleAdvancedSearch:
 
         return None
 
-    def _fetch_htmls_and_save_results_with_browser(self, google_url: str, with_html: bool, proxy: str,
-                                                   max_results: int):
-        driver = self._get_new_browser_session(proxy, False)
+    def _do_google_search_with_browser(self, driver, search: GoogleQuery):
+        driver.get(self.google_url)
+        sleep(self.browser_delay)
+        # agree the google policy
+        try:
+            driver.find_element(By.ID, AGREE_BUTTON).click()
+            sleep(self.browser_delay)
+        except:
+            pass
+        # WebDriverWait(driver, BROWSER_DELAY_DEFAULT).until(
+        #     EC.presence_of_element_located((By.NAME, "q"))).send_keys(search.query, Keys.ENTER)
+        # WebDriverWait(driver, BROWSER_DELAY_DEFAULT).until(
+        #     EC.presence_of_element_located((By.ID, "hdtb-tls"))).click()
+        print()
+
+    def _fetch_htmls_and_save_results_with_browser(self, search: GoogleQuery, with_html: bool, proxy: str,
+                                                   max_results: int, options: Options):
+        driver = self._get_new_browser_session(proxy, options)
+        # self._do_google_search_with_browser(driver, search)
         if not driver:
             return None
-        driver.get(google_url)
+        driver.get(self.google_url)
         sleep(self.browser_delay)
         # agree the google policy
         try:
@@ -289,8 +326,9 @@ class GoogleAdvancedSearch:
 
     def _parse_html_in_results(self, raw_html: str, with_html: bool, max_results: int) -> list[Result]:
         results = []
-        if len(self.results) < max_results and max_results != -1:
+        if len(self.results) < max_results or max_results == -1:
             soup = BeautifulSoup(raw_html, 'html.parser')
+            #todo remove literals
             result_block = soup.find_all('div', attrs={'class': 'g'})
             for result in result_block:
                 link = result.find('a', href=True)
@@ -298,7 +336,7 @@ class GoogleAdvancedSearch:
                 snippet = result.find("div", class_="VwiC3b")
 
                 if link and title and snippet:
-                    if len(self.results) + len(results) < max_results:
+                    if len(self.results) + len(results) < max_results or max_results == -1:
                         html = None
                         if with_html:
                             try:
@@ -313,23 +351,17 @@ class GoogleAdvancedSearch:
         return results
 
     def _get_new_browser_session(self, proxy: str, options: Options):
+        if options.web_driver:
+            return options.web_driver
         chrome_options = ChromeOptions()
-        chrome_options.add_argument('--headless')
-        if proxy != None:
+        # chrome_options.add_argument('--headless')
+        if proxy:
             chrome_options.add_argument(f"--proxy-server={proxy}")
-        if options.use_selenium_grid:
-            try:
-                # todo fix here
-                url = options.link_selenium_hub()
-                driver = webdriver.Remote(command_executor=url,
-                                          desired_capabilities=DesiredCapabilities.FIREFOX)
-                driver.maximize_window()
-            except Exception as e:
-                print("Failed to connect to selenium hub")
-                print(e)
-            return driver
-
-        driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
+        try:
+            driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
+        except:
+            print("Error: Can't initialize default chrome driver")
+            driver = None
         return driver
 
     def _set_new_search(self):
@@ -340,49 +372,51 @@ class GoogleAdvancedSearch:
         return urllib.parse.quote(query).replace('%20', '+')
 
     def _validate_inputs(self, max_results: int):
-        if max_results == 0 or max_results < -1:
-            print(f"max_results must be greater than 0 or -1, I will use default value:\t{MAX_RESULTS_DEFAULT}")
+        if max_results == 0 or max_results < -1 or not isinstance(max_results, int):
+            print(
+                f"max_results must be an integer greater than 0 or -1, I will use default value:\t{MAX_RESULTS_DEFAULT}")
             max_results = MAX_RESULTS_DEFAULT
         return max_results
 
-    def search(self, query: str,
-               query_type: Optional[QueryType] = QueryType.ALL_THESE_WORDS_PARAMETER,
-               language: Optional[str] = Language().language_code,
-               region: Optional[str] = Region().region_code,
-               last_update: Optional[str] = LastUpdate.ANYTIME.value,
-               site_or_domain: Optional[str] = SiteOrDomain().site_or_domain,
-               terms_appearing: Optional[str] = TermsAppearing().terms_appearing,
-               safe_search: Optional[str] = SafeSearch.SHOW_EXPLICIT_RESULT.value,
-               file_type: Optional[FileType] = FileType.ANY_FORMAT.value,
-               usage_right: Optional[UsageRight] = UsageRight.NOT_FILTERED_BY_LICENSE.value,
-               max_results: Optional[int] = MAX_RESULTS_DEFAULT,
-               options=Options()):
+    def _bing_search(self, search: BingQuery):
+        pass
 
-        max_results = self._validate_inputs(max_results)
-        self._set_new_search()
-        language = Language(language_code=language)
-        region = Region(region_code=region)
+    def _duckduckgo_search(self, search: DuckDuckGoQuery):
+        pass
 
-        escaped_search_query = self._escape_query(query)
-        google_url = f'https://www.google.com/search?{query_type.value}={escaped_search_query}&' \
-                     f'num={max_results}&' \
-                     f'{Language.PARAMETER}={language.language_code}&' \
-                     f'{Region.PARAMETER}={region.region_code}&' \
-                     f'{LastUpdate.PARAMETER.value}={last_update}&' \
-                     f'{SiteOrDomain.PARAMETER}={site_or_domain}&' \
-                     f'{TermsAppearing.PARAMETER}={terms_appearing}&' \
-                     f'{SafeSearch.PARAMETER.value}={safe_search}&' \
-                     f'{FileType.PARAMETER.value}={file_type}&' \
-                     f'{UsageRight.PARAMETER.value}={usage_right}'
+    def _google_search(self, search:  GoogleQuery, max_results: int, options: Options):
+
+        max_results_in_query = max_results if max_results != -1 else 100
+        escaped_search_query = self._escape_query(search.query)
+        google_url = f'https://www.google.com/search?{search.query_type.value}={escaped_search_query}&' \
+                     f'num={max_results_in_query}&' \
+                     f'{Language.PARAMETER}={search.language.language_code}&' \
+                     f'{Region.PARAMETER}={search.region.region_code}&' \
+                     f'{LastUpdate.PARAMETER.value}={search.last_update.value}&' \
+                     f'{SiteOrDomain.PARAMETER}={search.site_or_domain.site_or_domain}&' \
+                     f'{TermsAppearing.PARAMETER}={search.terms_appearing}&' \
+                     f'{SafeSearch.PARAMETER.value}={search.safe_search.value}&' \
+                     f'{FileType.PARAMETER.value}={search.file_type.value}&' \
+                     f'{UsageRight.PARAMETER.value}={search.usage_right.value}'
 
         print(f"Search URL ==> {google_url}")
         self.google_url = google_url
-        if not options.use_browser:
+        if not options.use_default_browser:
             proxy_dict = self._create_proxy_for_requests(options.proxy)
             self.htmls = self._fetch_htmls_with_http_client(google_url, proxy_dict)
             for html in self.htmls:
                 results = self._parse_html_in_results(html, options.with_html, max_results)
                 self.results.extend(results)
         else:
-            self._fetch_htmls_and_save_results_with_browser(google_url, options.with_html, options.proxy, max_results)
+            self._fetch_htmls_and_save_results_with_browser(search, options.with_html, options.proxy, max_results,
+                                                            options)
         return self.results
+
+    def search(self, query: Union[GoogleQuery, BingQuery, DuckDuckGoQuery],
+               max_results: Optional[int] = MAX_RESULTS_DEFAULT,
+               options=Options()):
+        self._set_new_search()
+        max_results = self._validate_inputs(max_results)
+
+        if isinstance(query, GoogleQuery):
+            self._google_search(query, max_results, options)

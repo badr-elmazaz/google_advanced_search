@@ -1,10 +1,8 @@
-# from search.google_search import *
+from search.google_search import *
 
-# google_advanced_search = GoogleAdvancedSearch()
-# results = google_advanced_search.search(query="cubo di rubik", max_results=53)
-# print(len(results))
-a = None
-b = 25
+google_advanced_search = GoogleAdvancedSearch()
+options = GoogleAdvancedSearch.Options(use_default_browser=True)
+google_query = GoogleQuery(query='wikipedia')
+results = google_advanced_search.search(query=google_query, max_results=-1, options=options)
+print(len(results))
 
-if a != b:
-    print("fdhsjdkn")
